@@ -563,9 +563,6 @@ ui<- dashboardPage(
   # # Sidebar
   dashboardSidebar(
     disable = TRUE
-    # sidebarMenu(
-    #   menuItem("Research Triangle CBG Map",tabName = 'map', icon = icon("location-dot"))
-    # )
   ),
   # Body
   dashboardBody(
@@ -733,32 +730,7 @@ server <- shinyServer(function(input, output) {
                     rvs$poly_cbg$risk_group_text2[rvs$poly_cbg$GEOID==rv_location$id],
                     'in this CBG.')
       ))
-      # HTML(paste(h4(strong('Results for Census Block Group:',rv_location$id)),
-      #            
-      #            h4('This census block group is in the ', 
-      #            strong(rvs$poly_cbg$cluster[rvs$poly_cbg$GEOID==rv_location$id]),
-      #            'Group, meaning that the contribution of local CVD incidence is positive', 
-      #            strong(rvs$poly_cbg$health_cont_text[rvs$poly_cbg$GEOID==rv_location$id]), 
-      #            'than the Research Triangle area average (Health Contribution ',
-      #            rvs$poly_cbg$health_cont_sign[rvs$poly_cbg$GEOID==rv_location$id],
-      #            ' 0) and the summer average daily temperature is ',
-      #            strong(rvs$poly_cbg$heat_cont_text[rvs$poly_cbg$GEOID==rv_location$id]), 
-      #            'than the Research Triangle average (Heat Contribution ',
-      #            rvs$poly_cbg$heat_cont_sign[rvs$poly_cbg$GEOID==rv_location$id],
-      #            ' 0).'),
-      #            
-      #            h4('Overall, the attributable burden rate for this CBG is',
-      #               rvs$poly_cbg$anr_pct_text[rvs$poly_cbg$GEOID==rv_location$id],
-      #               'which is ',
-      #               strong(rvs$poly_cbg$overall_anr_text[rvs$poly_cbg$GEOID==rv_location$id]), 
-      #               ' than the Research Triangle average. 
-      #               At this location, the CVD incidence rate was ',
-      #               rvs$poly_cbg$cvd_text[rvs$poly_cbg$GEOID==rv_location$id],
-      #               'and the daily average temperature during the summer of 2018
-      #               was ',
-      #               rvs$poly_cbg$temp_text[rvs$poly_cbg$GEOID==rv_location$id],
-      #               '.')
-      # ))
+
     }
     else{
       HTML(paste(h4('Click on the map to see census block group information.')))
