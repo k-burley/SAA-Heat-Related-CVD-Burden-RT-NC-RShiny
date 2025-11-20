@@ -45,10 +45,7 @@ rm(list = ls())
 ### 1. BRING IN DATA ----
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-# Set up working directories, bring in necessary files. 
-setwd("~/GitHub/SAA-Heat-Related-CVD-Burden-RT-NC-Rshiny/Code")
-
-cbg_an_final_25 <- read_csv("../Data/Analysis/3_RTP_XCESS_ATTR_Burden_CBG_Summer2018_25C.csv") %>% 
+cbg_an_final_25 <- read_csv("Data/3_RTP_XCESS_ATTR_Burden_CBG_Summer2018_25C.csv") %>% 
   filter(!is.na(an_c_1km)) %>%
   mutate(LocationID = str_sub(GEOID, 1, 11)) %>% # get census tract from CBG - 459
   mutate(month = month(date)) %>%
@@ -63,7 +60,7 @@ cbg_comp <- cbg_an_final_25 %>%
   ungroup() %>%
   mutate(GEOID = as.character(GEOID))
 
-cbg_sf <- st_read("../Data/Original/Geography/tl_2020_37_bg/tl_2020_37_bg.shp") %>%
+cbg_sf <- st_read("Data/tl_2020_37_bg/tl_2020_37_bg.shp") %>%
   select(GEOID, geometry)
 
 cbg_comp_sf <- cbg_sf %>%
@@ -72,7 +69,7 @@ cbg_comp_sf <- cbg_sf %>%
   filter(!is.na(tot_an)) 
 
 # Attributable Burden decomposition
-decomp <- read_csv("../Data/Results/3b_Attributable_Rate_Decomposition.csv") %>%
+decomp <- read_csv("Data/3b_Attributable_Rate_Decomposition.csv") %>%
   select(-c(pop_count)) %>%
   mutate(GEOID = as.character(GEOID)) 
 
@@ -164,7 +161,7 @@ waterfall_df <- cbg_comp_sf_plot %>%
 
 
 ### Demographics Plots
-cbg_pop_totals <- read_csv("../Data/Analysis/CBG_Subgroup_Pop_Totals.csv") %>%
+cbg_pop_totals <- read_csv("Data/CBG_Subgroup_Pop_Totals.csv") %>%
   mutate(GEOID = as.character(GEOID))
 
 # Demographic statistics aggregated across the whole RTP area
