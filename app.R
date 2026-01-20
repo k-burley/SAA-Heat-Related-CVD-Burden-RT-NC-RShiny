@@ -9,269 +9,26 @@
 
 rm(list = ls())
 
-{
-  library(tidyverse)
-  library(dplyr)
-  library(readxl)
-  library(writexl)
-  library(openxlsx)
-  library(tidytext)
-  library(igraph)
-  library(ggraph)
-  library(tokenizers)
-  library(ggrepel)
-  library(ggpubr)
-  library(scales)
-  library(RColorBrewer)
-  library(gridExtra)
-  library(lubridate)
-  library(sf)
-  library(lme4)
-  library(dlnm)
-  library(data.table)
-  library(splines)
-  library(wesanderson)
-  library(colorspace)
-  library(tmap)
-  library(waterfalls)
-  library(shiny)
-  library(shinydashboard)
-  library(leaflet)
-  library(fresh)
-}
-
+library(sf)
+library(leaflet)
+library(ggplot2)
+library(ggpubr)
+library(fresh)
+library(shiny)
+library(shinydashboard)
 
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### 1. BRING IN DATA ----
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-cbg_an_final_25 <- read_csv("Data/3_RTP_XCESS_ATTR_Burden_CBG_Summer2018_25C.csv") %>% 
-  filter(!is.na(an_c_1km)) %>%
-  mutate(LocationID = str_sub(GEOID, 1, 11)) %>% # get census tract from CBG - 459
-  mutate(month = month(date)) %>%
-  filter(month %in% c(5,6,7,8,9))
-
-cbg_comp <- cbg_an_final_25 %>% 
-  group_by(GEOID, LocationID, pop_count) %>%
-  summarise(tot_an = sum(an_c_1km),
-            tmean_f = mean(tmean_f_1km),
-            tmean_c = mean(tmean_c_1km),
-            total_cvd = sum(total_CVD)) %>%
-  ungroup() %>%
-  mutate(GEOID = as.character(GEOID))
-
-cbg_sf <- st_read("Data/tl_2020_37_bg/tl_2020_37_bg.shp") %>%
-  select(GEOID, geometry)
-
-cbg_comp_sf <- cbg_sf %>%
-  select(GEOID, geometry) %>%
-  left_join(cbg_comp, by="GEOID") %>%
-  filter(!is.na(tot_an)) 
-
-# Attributable Burden decomposition
-decomp <- read_csv("Data/3b_Attributable_Rate_Decomposition.csv") %>%
-  select(-c(pop_count)) %>%
-  mutate(GEOID = as.character(GEOID)) 
-
-cbg_comp_sf_plot <- cbg_comp_sf %>%
-  mutate(tot_an_rate = (tot_an/pop_count)*10000,
-         tot_cvd_rate = (total_cvd/pop_count)*10000) %>%
-  mutate(pct_ha = (tot_an/total_cvd)*100) %>%
-  left_join(decomp, by="GEOID") %>%
-  mutate(cvd_pctile = round(percent_rank(tot_cvd_rate)*100, digits=0),
-         temp_pctile = round(percent_rank(tmean_c)*100, digits=0)) %>%
-  st_transform(4326) # check if this fixes!
-
-rm(cbg_an_final_25, cbg_comp, cbg_comp_sf, decomp)
-
-# MAIN DF FOR THE MAP! Risk Groups and Rate
-map_df <- cbg_comp_sf_plot %>%
-  mutate(cluster = as.factor(case_when(an_tempdiff2_rate>0 & an_cvddiff1_rate>0 ~ "Dual Channel Risk",
-                             an_tempdiff2_rate>0 & an_cvddiff1_rate<0 ~ "Heat Driven Risk",
-                             an_tempdiff2_rate<0 & an_cvddiff1_rate>0 ~ "Health Driven Risk",
-                             an_tempdiff2_rate<0 & an_cvddiff1_rate<0 ~ "Low Risk"))) %>%
-  mutate(anrate_pctile = round(percent_rank(tot_an_rate)*100, digits=0)) %>%
-  select(GEOID, geometry, cluster, an_cvddiff1_rate, an_tempdiff2_rate, 
-         cvd_pctile, temp_pctile, tmean_c, tmean_f, tot_cvd_rate,
-         tot_an_rate, anrate_pctile) %>%
-  # Popup info
-  mutate(content = paste0("CBG ID: ",GEOID)) %>%
-  mutate(cvd_text = case_when((cvd_pctile %% 10 == 1 & cvd_pctile!=11) ~ paste0(round(tot_cvd_rate, 1)," hosp. per 10k"),
-                                  (cvd_pctile %% 10 == 2 & cvd_pctile!=12) ~ paste0(round(tot_cvd_rate, 1)," hosp. per 10k"),
-                                  (cvd_pctile %% 10 == 3 & cvd_pctile!=13) ~ paste0(round(tot_cvd_rate, 1)," hosp. per 10k"),
-                                  TRUE ~ paste0(round(tot_cvd_rate, 1)," hosp. per 10k"))) %>%
-  mutate(temp_text = case_when((temp_pctile %% 10 == 1 & temp_pctile!=11) ~ paste0(round(tmean_f, 1),"°F"),
-                                   (temp_pctile %% 10 == 2 & temp_pctile!=12) ~ paste0(round(tmean_f, 1),"°F"),
-                                   (temp_pctile %% 10 == 3 & temp_pctile!=13) ~ paste0(round(tmean_f, 1),"°F"),
-                                   TRUE ~ paste0(round(tmean_f, 1),"°F"))) %>%
-  mutate(anr_pct_text = case_when((anrate_pctile %% 10 == 1 & anrate_pctile!=11) ~ paste0(round(tot_an_rate, 1)," hospitalizations per 10k (",anrate_pctile,"st percentile)"),
-                                  (anrate_pctile %% 10 == 2 & anrate_pctile!=12) ~ paste0(round(tot_an_rate, 1)," hospitalizations per 10k (",anrate_pctile,"nd percentile)"),
-                                  (anrate_pctile %% 10 == 3 & anrate_pctile!=13) ~ paste0(round(tot_an_rate, 1)," hospitalizations per 10k (",anrate_pctile,"rd percentile)"),
-                                  TRUE ~ paste0(round(tot_an_rate, 1)," hospitalizations per 10k (",anrate_pctile,"th percentile)"))) %>%
-  mutate(risk_group_text1 = case_when(cluster == "Dual Channel Risk" ~ "both relatively high cardiovascular disease incidence and heat exposure",
-                                     cluster == "Heat Driven Risk" ~ "relatively high heat exposure",
-                                     cluster == "Health Driven Risk" ~ "relatively high cardiovascular disease incidence",
-                                     cluster == "Low Risk" ~ "relatively low cardiovascular disease incidence and heat exposure")) %>%
-  mutate(risk_group_text2 = case_when(cluster == "Dual Channel Risk" ~ " contribute to the heat-attributable CVD burden rate ",
-                                     cluster == "Heat Driven Risk" ~ " contributes to the heat-attributable CVD burden rate ",
-                                     cluster == "Health Driven Risk" ~ " contributes to the heat-attributable CVD burden rate ",
-                                     cluster == "Low Risk" ~ " result in a below average heat-attributable CVD burden rate ")) %>%
-  mutate(health_cont_text = case_when(an_cvddiff1_rate<0 ~ "negative",
-                                      an_cvddiff1_rate>0 ~ "positive")) %>%
-  mutate(health_cont_sign = case_when(an_cvddiff1_rate<0 ~ "≤",
-                                      an_cvddiff1_rate>0 ~ ">")) %>%
-  mutate(heat_cont_text = case_when(an_tempdiff2_rate<0 ~ "negative",
-                                    an_tempdiff2_rate>0 ~ "positive")) %>%
-  mutate(heat_cont_sign = case_when(an_tempdiff2_rate<0 ~ "≤",
-                                    an_tempdiff2_rate>0 ~ ">")) %>%
-  mutate(overall_anr_text = case_when(tot_an_rate < 5.788092 ~ "lower",
-                                      tot_an_rate > 5.788092 ~ "higher"))
-
-# Waterfall Plot Data - MAIN DF FOR WATERFALL PLOTS! 
-waterfall_df <- cbg_comp_sf_plot %>% 
-  select(GEOID, an_atac_rate, an_gtgc_rate, an_cvddiff1_rate, an_tempdiff2_rate) %>%
-  mutate(start_1 = 0,
-         start_2 = an_atac_rate,
-         start_3 = an_atac_rate+an_cvddiff1_rate,
-         start_4 = 0,
-         amount_1 = an_atac_rate,
-         amount_2 = an_cvddiff1_rate,
-         amount_3 = an_tempdiff2_rate,
-         amount_4 = an_gtgc_rate) %>%
-  mutate(end_1 = start_1+amount_1,
-         end_2 = start_2+amount_2,
-         end_3 = start_3+amount_3,
-         end_4 = start_4+amount_4) %>%
-  pivot_longer(start_1:end_4, names_to="group", values_to="rate") %>%
-  separate(group, into=c("var","group"), remove=T) %>%
-  pivot_wider(names_from=var, values_from=rate) %>%
-  group_by(GEOID) %>%
-  mutate(id = row_number()) %>%
-  ungroup() %>%
-  # Fields for plotting
-  mutate(group = factor(group, levels=c(1,2,3,4), 
-                        labels=c("RT Summer Avg. Rate","Health Contribution","Heat Contribution", "CBG Attributable Rate"))) %>%
-  mutate(label_loc = pmax(start,end)) %>%
-  mutate(color_assignment = case_when(group == "RT Summer Avg. Rate" ~ "Average",
-                                      group == "CBG Attributable Rate" ~ "CBG",
-                                      (group %in% c("Health Contribution","Heat Contribution") & amount> 2) ~ "Large Above",
-                                      (group %in% c("Health Contribution","Heat Contribution") & amount< 2 & amount>0) ~ "Small Above",
-                                      (group %in% c("Health Contribution","Heat Contribution") & amount< -2) ~ "Large Below",
-                                      (group %in% c("Health Contribution","Heat Contribution") & amount> -2 & amount<0) ~ "Small Below"))
-
-
-### Demographics Plots
-cbg_pop_totals <- read_csv("Data/CBG_Subgroup_Pop_Totals.csv") %>%
-  mutate(GEOID = as.character(GEOID))
-
-# Demographic statistics aggregated across the whole RTP area
-demobar_allrtp <- cbg_comp_sf_plot %>%
-  left_join(cbg_pop_totals) %>%
-  st_drop_geometry() %>%
-  mutate(area = "All Research Triangle") %>%
-  group_by(area) %>%
-  summarise(pop_count = sum(pop_count),
-            pop_male = sum(pop_male),
-            pop_female = sum(pop_female),
-            pop_asian = sum(pop_asian),
-            pop_black = sum(pop_black),
-            pop_hispanic = sum(pop_hispanic),
-            pop_native = sum(pop_native),
-            pop_other = sum(pop_other),
-            pop_white = sum(pop_white),
-            pop_65_74 = sum(pop_65_74),
-            pop_75_84 = sum(pop_75_84),
-            pop_85_pl = sum(pop_85_pl),
-            pop25_w_bach = sum(pop25_w_bach),
-            tot_pop25 = sum(tot_pop25),
-            hh_below_pl = sum(hh_below_pl),
-            tot_hh = sum(tot_hh)) %>%
-  ungroup() %>%
-  mutate(pct_male = pop_male/(pop_male+pop_female),
-         pct_female = pop_female/(pop_male+pop_female),
-         pct_asian = pop_asian/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_black = pop_black/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_hispanic = pop_hispanic/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_native = pop_native/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_other = pop_other/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_white = pop_white/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_65_74 = pop_65_74/(pop_65_74 + pop_75_84 + pop_85_pl),
-         pct_75_84 = pop_75_84/(pop_65_74 + pop_75_84 + pop_85_pl),
-         pct_85_pl = pop_85_pl/(pop_65_74 + pop_75_84 + pop_85_pl),
-         pct_below_pl = hh_below_pl/tot_hh,
-         pct_w_bach = pop25_w_bach/tot_pop25) %>%
-  select(area, pct_male, pct_female, pct_asian, pct_black,
-         pct_hispanic, pct_native, pct_other, pct_white,
-         pct_65_74, pct_75_84, pct_85_pl, pct_below_pl, pct_w_bach) %>%
-  pivot_longer(pct_male:pct_w_bach, names_to="var", values_to = "pct") %>%
-  mutate(subgroup_type = case_when(var %in% c("pct_male", "pct_female") ~ "Sex",
-                                   var %in% c("pct_asian", "pct_black", "pct_hispanic", "pct_native", "pct_other", "pct_white") ~ "Race",
-                                   var %in% c("pct_65_74", "pct_75_84", "pct_85_pl") ~ "Age",
-                                   var %in% c("pct_below_pl", "pct_w_bach") ~ "Poverty + Education")) %>%
-  # For Labels:
-  mutate(var_label = case_when(var == "pct_male" ~ "Male",
-                               var == "pct_female" ~ "Female",
-                               var == "pct_asian" ~ "Asian",
-                               var == "pct_black" ~ "Black",
-                               var == "pct_hispanic" ~ "Hisp.",
-                               var == "pct_native" ~ "Native American",
-                               var == "pct_other" ~ "Other",
-                               var == "pct_white" ~ "White",
-                               var == "pct_65_74" ~ "65-74",
-                               var == "pct_75_84" ~ "75-64",
-                               var == "pct_85_pl" ~ "85+",
-                               var == "pct_below_pl" ~ "HHs Below PL",
-                               var == "pct_w_bach" ~ "Bachelor's +")) %>%
-  mutate(pct_round = round(pct*100,1)) %>%
-  mutate(GEOID = area)
-
-
-demobar_df <- cbg_comp_sf_plot %>%
-  left_join(cbg_pop_totals) %>%
-  st_drop_geometry() %>%
-  mutate(pct_male = pop_male/(pop_male+pop_female),
-         pct_female = pop_female/(pop_male+pop_female),
-         pct_asian = pop_asian/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_black = pop_black/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_hispanic = pop_hispanic/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_native = pop_native/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_other = pop_other/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_white = pop_white/(pop_asian + pop_black + pop_hispanic + pop_native + pop_other + pop_white),
-         pct_65_74 = pop_65_74/(pop_65_74 + pop_75_84 + pop_85_pl),
-         pct_75_84 = pop_75_84/(pop_65_74 + pop_75_84 + pop_85_pl),
-         pct_85_pl = pop_85_pl/(pop_65_74 + pop_75_84 + pop_85_pl),
-         pct_below_pl = hh_below_pl/tot_hh,
-         pct_w_bach = pop25_w_bach/tot_pop25) %>%
-  select(GEOID, pct_male, pct_female, pct_asian, pct_black,
-         pct_hispanic, pct_native, pct_other, pct_white,
-         pct_65_74, pct_75_84, pct_85_pl, pct_below_pl, pct_w_bach) %>%
-  pivot_longer(pct_male:pct_w_bach, names_to="var", values_to = "pct") %>%
-  mutate(subgroup_type = case_when(var %in% c("pct_male", "pct_female") ~ "Sex",
-                                   var %in% c("pct_asian", "pct_black", "pct_hispanic", "pct_native", "pct_other", "pct_white") ~ "Race",
-                                   var %in% c("pct_65_74", "pct_75_84", "pct_85_pl") ~ "Age",
-                                   var %in% c("pct_below_pl", "pct_w_bach") ~ "Poverty + Education")) %>%
-  # For Labels:
-  mutate(var_label = case_when(var == "pct_male" ~ "Male",
-                               var == "pct_female" ~ "Female",
-                               var == "pct_asian" ~ "Asian",
-                               var == "pct_black" ~ "Black",
-                               var == "pct_hispanic" ~ "Hisp.",
-                               var == "pct_native" ~ "Native American",
-                               var == "pct_other" ~ "Other",
-                               var == "pct_white" ~ "White",
-                               var == "pct_65_74" ~ "65-74",
-                               var == "pct_75_84" ~ "75-64",
-                               var == "pct_85_pl" ~ "85+",
-                               var == "pct_below_pl" ~ "HHs Below PL",
-                               var == "pct_w_bach" ~ "Bachelor's +")) %>%
-  mutate(pct_round = round(pct*100,1)) %>%
-  mutate(area = paste0("CBG")) %>%
-  # BRING IN AGGREGATED
-  bind_rows(demobar_allrtp) 
+map_df <- st_read("Data/map_df.shp")
+waterfall_df <- read.csv("Data/waterfall_df.csv")
+demobar_df <- read.csv("Data/demobar_df.csv")
+demobar_allrtp <- read.csv("Data/demobar_allrtp.csv")
 
 # Color Palettes
-pal <- wes_palette("Zissou1", n = 5) 
-pal2 <- wes_palette("Darjeeling1", n = 5) 
+pal <- c("#3B9AB2","#78B7C5","#EBCC2A","#E1AF00","#F21A00")
+pal2 <- c("#FF0000","#00A08A","#F2AD00","#F98400","#5BBCD6")
 
 # green_cont_pal <- colorRampPalette(c('#84EFD8', '#034036'),100)
 
@@ -279,10 +36,10 @@ green_cont_pal <- colorRampPalette(c('#d2f9f1', "#00A08A", "#006E5F", '#003930')
 
 cont_pal <- colorNumeric(
   palette = green_cont_pal, # "inferno"
-  domain = range(map_df$tot_an_rate)
+  domain = range(map_df$tot_an_rt)
 )
 
-factpal <- colorFactor(c(pal[5],pal2[2], "#fdae61", lighten(pal2[5],0.5)), map_df$cluster)
+factpal <- colorFactor(c(pal[5],pal2[2], "#fdae61", "#8AE3FE"), map_df$cluster)
 
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### 2. CREATE FUNCTIONS ----
@@ -305,8 +62,8 @@ plot_waterfall <- function(data, cbg_geoid) {
     scale_colour_manual(values=c("Average"="gray50",
                                  "CBG" = pal2[2],
                                  "Large Above" = pal[5],
-                                 "Small Above" = lighten(pal[5],0.5),
-                                 "Small Below" = lighten(pal[1],0.5),
+                                 "Small Above" = "#FFA1A0",
+                                 "Small Below" = "#81D1E9",
                                  "Large Below" = pal[1]),
                         aesthetics=c("colour","fill")) +
     ylim(c(0,24)) +
@@ -328,8 +85,8 @@ ggplot() +
   scale_colour_manual(values=c("Average"="gray50",
                                "CBG" = pal2[2],
                                "Large Above" = pal[5],
-                               "Small Above" = lighten(pal[5],0.5),
-                               "Small Below" = lighten(pal[1],0.5),
+                               "Small Above" = "#FFA1A0", # lighten(pal[5],0.5)
+                               "Small Below" = "#81D1E9", # lighten(pal[1],0.5)
                                "Large Below" = pal[1]),
                       aesthetics=c("colour","fill")) +
   ylim(c(0,24)) +
@@ -374,39 +131,6 @@ plot_map <- function(data) {
               # labFormat = labelFormat(prefix = "$"),
               opacity = 1)
   
-}
-
-#### RATE MAP ####
-   
-# FUNCTION TO PLOT RATE
-# data should = map_df
-plot_ratemap <- function(data) {                                
-leaflet() %>%
-  addTiles() %>%
-  # addProviderTiles(providers$CartoDB.PositronNoLabels)  %>%
-  setView(lng = -78.8, lat = 35.84, zoom = 9) %>%
-  addPolygons(data=data,
-
-              # state border stroke color
-              color = 'white',
-
-              # soften the weight of the state borders
-              weight = 1,
-
-              # values >1 simplify the polygons' lines for less detail but faster loading
-              smoothFactor = .3,
-
-              # set opacity of polygons
-              fillOpacity = .75,
-
-              # specify that the each state should be colored per paletteNum()
-              fillColor = ~cont_pal(tot_an_rate),
-
-              # popup - would like to add county and city here.
-              label = ~content) %>%
-  addLegend("topleft", pal=cont_pal, values = data$tot_an_rate,
-            title = "CBG Heat-Attributable Hosp. per 10k",
-            opacity = 1)
 }
 
 #### DEMOGRAPHICS BAR PLOT ####
@@ -537,7 +261,6 @@ other_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Pover
 
 demobar_default <- ggarrange(sex_comp_default, race_comp_default, age_comp_default, other_comp_default,
                       nrow=2, ncol=2, common.legend = T) # sooo similar
-demobar_default
 rm(sex_comp_default, age_comp_default, race_comp_default, other_comp_default)
 
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -650,14 +373,14 @@ server <- shinyServer(function(input, output) {
                     fillOpacity = .75,
                     
                     # specify that the each state should be colored per paletteNum()
-                    fillColor = ~cont_pal(tot_an_rate),
+                    fillColor = ~cont_pal(tot_an_rt),
                     
                     # Specify ID for reactive values to use
                     layerId = rvs$poly_cbg$GEOID,
                     
                     # popup - would like to add county and city here.
                     label = ~content) %>%
-        addLegend("topleft", pal=cont_pal, values = map_df$tot_an_rate,
+        addLegend("topleft", pal=cont_pal, values = map_df$tot_an_rt,
                   title = "CBG Heat-Attributable Hosp. per 10k",
                   opacity = 1)
     }
@@ -706,25 +429,25 @@ server <- shinyServer(function(input, output) {
       HTML(paste(h4(strong('Results for Census Block Group:',rv_location$id)),
                  
                  h4('Overall, the attributable burden rate for this CBG is',
-                    rvs$poly_cbg$anr_pct_text[rvs$poly_cbg$GEOID==rv_location$id],
+                    rvs$poly_cbg$anrpct_txt[rvs$poly_cbg$GEOID==rv_location$id],
                     'which is ',
-                    strong(rvs$poly_cbg$overall_anr_text[rvs$poly_cbg$GEOID==rv_location$id]), 
+                    strong(rvs$poly_cbg$anr_text[rvs$poly_cbg$GEOID==rv_location$id]), 
                     ' than the Research Triangle average.'),
                  
                  h4('This census block group is in the ', 
                     strong(rvs$poly_cbg$cluster[rvs$poly_cbg$GEOID==rv_location$id]),
                     'Group, meaning that the Health Contribution is ', 
-                    rvs$poly_cbg$health_cont_text[rvs$poly_cbg$GEOID==rv_location$id],
+                    rvs$poly_cbg$hl_text[rvs$poly_cbg$GEOID==rv_location$id],
                     '(',
-                    rvs$poly_cbg$health_cont_sign[rvs$poly_cbg$GEOID==rv_location$id],
+                    rvs$poly_cbg$hl_sign[rvs$poly_cbg$GEOID==rv_location$id],
                     '0) and the Heat-Contribution is ',
-                    rvs$poly_cbg$heat_cont_text[rvs$poly_cbg$GEOID==rv_location$id],
+                    rvs$poly_cbg$ht_txt[rvs$poly_cbg$GEOID==rv_location$id],
                     '(',
-                    rvs$poly_cbg$heat_cont_sign[rvs$poly_cbg$GEOID==rv_location$id],
+                    rvs$poly_cbg$ht_sign[rvs$poly_cbg$GEOID==rv_location$id],
                     '0).',
                     'This indicates that',
-                    strong(rvs$poly_cbg$risk_group_text1[rvs$poly_cbg$GEOID==rv_location$id]),
-                    rvs$poly_cbg$risk_group_text2[rvs$poly_cbg$GEOID==rv_location$id],
+                    strong(rvs$poly_cbg$rg_txt1[rvs$poly_cbg$GEOID==rv_location$id]),
+                    rvs$poly_cbg$rg_txt2[rvs$poly_cbg$GEOID==rv_location$id],
                     'in this CBG.')
       ))
 
@@ -745,8 +468,8 @@ server <- shinyServer(function(input, output) {
         scale_colour_manual(values=c("Average"="gray50",
                                      "CBG" = pal2[2],
                                      "Large Above" = pal[5],
-                                     "Small Above" = lighten(pal[5],0.5),
-                                     "Small Below" = lighten(pal[1],0.5),
+                                     "Small Above" = "#FFA1A0",
+                                     "Small Below" = "#81D1E9",
                                      "Large Below" = pal[1]),
                             aesthetics=c("colour","fill")) +
         ylim(c(0,24)) +
