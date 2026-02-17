@@ -44,7 +44,8 @@ factpal <- colorFactor(c(pal[5],pal2[2], "#fdae61", "#8AE3FE"), map_df$cluster)
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 ### 2. CREATE FUNCTIONS ----
 ###~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+# factor(group, levels=c(1,2,3,4), 
+# labels=c("RT Summer Avg. Rate","Health Contribution","Heat Contribution", "CBG Attributable Rate"))
 #### WATERFALL PLOT ####
 
 # Decomposition Waterfall Selection Function
@@ -54,9 +55,9 @@ plot_waterfall <- function(data, cbg_geoid) {
   }
   
   ggplot() + 
-    geom_rect(data=data[data$GEOID==cbg_geoid,], mapping=aes(x=group, xmin = id - 0.45, xmax = id + 0.45, ymin = end, ymax = start,
+    geom_rect(data=data[data$GEOID==cbg_geoid,], mapping=aes(x=id, xmin = id - 0.45, xmax = id + 0.45, ymin = end, ymax = start,
                                                                                   colour=color_assignment, fill=color_assignment), alpha=0.75) +
-    geom_text(data=data[data$GEOID==cbg_geoid,], aes(x=group,y=label_loc+1.5, label=round(amount,2)),vjust=.5, size=6) +
+    geom_text(data=data[data$GEOID==cbg_geoid,], aes(x=id,y=label_loc+1.5, label=round(amount,2)),size=6) + 
     geom_segment(data=data[data$GEOID==cbg_geoid & data$id!=4,], 
                  aes(x=id+.45, xend=id+.55, y=end, yend=end),linetype="twodash",linewidth=0.75) +
     scale_colour_manual(values=c("Average"="gray50",
@@ -68,6 +69,11 @@ plot_waterfall <- function(data, cbg_geoid) {
                         aesthetics=c("colour","fill")) +
     ylim(c(0,24)) +
     theme_minimal() +
+    # Note: must be set manually as "group" will plot in reverse if included as x in geom_text above
+    scale_x_continuous(
+      breaks = c(1,2,3,4),
+      labels = c("RT Summer Avg. Rate","Heat Contribution","Health Contribution","CBG Attributable Rate")
+    ) +
     theme(legend.position = "none",
           axis.text.x = element_text(size=12)) +
     labs(title = "Decomposition of CBG Attributable Burden Rate",
@@ -81,7 +87,7 @@ plot_waterfall <- function(data, cbg_geoid) {
 ggplot() +
   geom_rect(data=waterfall_df[waterfall_df$id==1,], mapping=aes(x=group, xmin = id - 0.45, xmax = id + 0.45, ymin = end, ymax = start,
                                                            colour=color_assignment, fill=color_assignment), alpha=0.75) +
-  geom_text(data=waterfall_df[waterfall_df$id==1,], aes(x=group,y=label_loc+1.5, label=round(amount,2)),vjust=.5, size=6) +
+  geom_text(data=waterfall_df[waterfall_df$id==1,], aes(x=group,y=label_loc+1.5, label=round(amount,2)), size=6) +
   scale_colour_manual(values=c("Average"="gray50",
                                "CBG" = pal2[2],
                                "Large Above" = pal[5],
@@ -152,7 +158,9 @@ plot_demobar <- function(data, cbg_geoid){
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
-          axis.text.x = element_text(size=12))
+          axis.text.x = element_text(size=12),
+          legend.title = element_text(size=11),
+          legend.text = element_text(size=11))
   
   # Race
   race_comp <- ggplot(data[data$subgroup_type=="Race" & data$var!="pct_native" & data$GEOID %in% c("All Research Triangle",cbg_geoid),],
@@ -166,7 +174,9 @@ plot_demobar <- function(data, cbg_geoid){
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
-          axis.text.x = element_text(size=12))
+          axis.text.x = element_text(size=12),
+          legend.title = element_text(size=11),
+          legend.text = element_text(size=11))
   
   # Age
   age_comp <- ggplot(data[data$subgroup_type=="Age" & data$GEOID %in% c("All Research Triangle",cbg_geoid),],
@@ -180,7 +190,9 @@ plot_demobar <- function(data, cbg_geoid){
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
-          axis.text.x = element_text(size=12))
+          axis.text.x = element_text(size=12),
+          legend.title = element_text(size=11),
+          legend.text = element_text(size=11))
   
   # Poverty + Education
   other_comp <- ggplot(data[data$subgroup_type=="Poverty + Education" & data$GEOID %in% c("All Research Triangle",cbg_geoid),],
@@ -194,7 +206,9 @@ plot_demobar <- function(data, cbg_geoid){
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
-          axis.text.x = element_text(size=12))
+          axis.text.x = element_text(size=12),
+          legend.title = element_text(size=11),
+          legend.text = element_text(size=11))
   
   bar_comp <- ggarrange(sex_comp, race_comp, age_comp, other_comp,
                         nrow=2, ncol=2, common.legend = T) # sooo similar
@@ -215,7 +229,9 @@ sex_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Sex",],
   theme_minimal() +
   theme(panel.grid = element_blank(),
         text = element_text(size = 15),
-        axis.text.x = element_text(size=12))
+        axis.text.x = element_text(size=12),
+        legend.title = element_text(size=11),
+        legend.text = element_text(size=11))
 
 # Race
 race_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Race" & demobar_allrtp$var!="pct_native",],
@@ -229,7 +245,9 @@ race_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Race" 
   theme_minimal() +
   theme(panel.grid = element_blank(),
         text = element_text(size = 15),
-        axis.text.x = element_text(size=12))
+        axis.text.x = element_text(size=12),
+        legend.title = element_text(size=12),
+        legend.text = element_text(size=11))
 
 # Age
 age_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Age",],
@@ -243,7 +261,9 @@ age_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Age",],
   theme_minimal() +
   theme(panel.grid = element_blank(),
         text = element_text(size = 15),
-        axis.text.x = element_text(size=12))
+        axis.text.x = element_text(size=12),
+        legend.title = element_text(size=11),
+        legend.text = element_text(size=11))
 
 # Poverty + Education
 other_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Poverty + Education",],
@@ -257,7 +277,9 @@ other_comp_default <- ggplot(demobar_allrtp[demobar_allrtp$subgroup_type=="Pover
   theme_minimal() +
   theme(panel.grid = element_blank(),
         text = element_text(size = 15),
-        axis.text.x = element_text(size=12))
+        axis.text.x = element_text(size=12),
+        legend.title = element_text(size=11),
+        legend.text = element_text(size=11))
 
 demobar_default <- ggarrange(sex_comp_default, race_comp_default, age_comp_default, other_comp_default,
                       nrow=2, ncol=2, common.legend = T) # sooo similar
