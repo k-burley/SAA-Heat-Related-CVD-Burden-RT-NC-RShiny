@@ -24,6 +24,7 @@ library(shinydashboard)
 map_df <- st_read("Data/map_df.shp")
 waterfall_df <- read.csv("Data/waterfall_df.csv")
 demobar_df <- read.csv("Data/demobar_df.csv")
+demobar_df$area[demobar_df$area=="All Research Triangle"] <- "All Research\n Triangle" # fix legend overlaps
 demobar_allrtp <- read.csv("Data/demobar_allrtp.csv")
 
 # Color Palettes
@@ -146,6 +147,7 @@ plot_demobar <- function(data, cbg_geoid){
     return(NULL)
   }
   
+
   # SEX
   sex_comp <- ggplot(data[data$subgroup_type=="Sex" & data$GEOID %in% c("All Research Triangle",cbg_geoid),],
                      aes(x=var_label, y=pct_round, fill=area)) + #
@@ -154,14 +156,15 @@ plot_demobar <- function(data, cbg_geoid){
     coord_cartesian(clip="off") +
     labs(y= "Percent", x = "Sex", fill="Geography") + # , fill = "CBG Attr. Rate Group"
     scale_y_continuous(limits=c(0,100), n.breaks=5) +
-    scale_fill_manual(values = c("All Research Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
+    scale_fill_manual(values = c("All Research\n Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
           axis.text.x = element_text(size=12),
-          legend.title = element_text(size=11),
-          legend.text = element_text(size=11))
-  
+          legend.title = element_text(size=10),
+          legend.text = element_text(size=10),
+          legend.spacing.x = grid::unit(30, "pt"))
+
   # Race
   race_comp <- ggplot(data[data$subgroup_type=="Race" & data$var!="pct_native" & data$GEOID %in% c("All Research Triangle",cbg_geoid),],
                       aes(x=var_label, y=pct_round, fill=area)) + # exclude native bc not in model
@@ -170,14 +173,15 @@ plot_demobar <- function(data, cbg_geoid){
     coord_cartesian(clip="off") +
     labs(y= "Percent", x = "Race", fill="Geography") +
     scale_y_continuous(limits=c(0,100), n.breaks=5) +
-    scale_fill_manual(values = c("All Research Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
+    scale_fill_manual(values = c("All Research\n Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
           axis.text.x = element_text(size=12),
-          legend.title = element_text(size=11),
-          legend.text = element_text(size=11))
-  
+          legend.title = element_text(size=10),
+          legend.text = element_text(size=10),
+          legend.spacing.x = grid::unit(30, "pt"))
+
   # Age
   age_comp <- ggplot(data[data$subgroup_type=="Age" & data$GEOID %in% c("All Research Triangle",cbg_geoid),],
                      aes(x=var_label, y=pct_round, fill=area)) + 
@@ -186,13 +190,14 @@ plot_demobar <- function(data, cbg_geoid){
     coord_cartesian(clip="off") +
     labs(y= "Percent", x = "Age", fill="Geography") +
     scale_y_continuous(limits=c(0,100), n.breaks=5) +
-    scale_fill_manual(values = c("All Research Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
+    scale_fill_manual(values = c("All Research\n Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
           axis.text.x = element_text(size=12),
-          legend.title = element_text(size=11),
-          legend.text = element_text(size=11))
+          legend.title = element_text(size=10),
+          legend.text = element_text(size=10),
+          legend.spacing.x = grid::unit(30, "pt"))
   
   # Poverty + Education
   other_comp <- ggplot(data[data$subgroup_type=="Poverty + Education" & data$GEOID %in% c("All Research Triangle",cbg_geoid),],
@@ -202,14 +207,15 @@ plot_demobar <- function(data, cbg_geoid){
     coord_cartesian(clip="off") +
     labs(y= "Percent", x = "Poverty + Education", fill="Geography") +
     scale_y_continuous(limits=c(0,100), n.breaks=5) +
-    scale_fill_manual(values = c("All Research Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
+    scale_fill_manual(values = c("All Research\n Triangle"="gray50", "CBG"=pal2[2])) + # "Top 10%"=pal[5], "Bottom 90%"=lighten(pal2[5],0.5)
     theme_minimal() +
     theme(panel.grid = element_blank(),
           text = element_text(size = 15),
           axis.text.x = element_text(size=12),
-          legend.title = element_text(size=11),
-          legend.text = element_text(size=11))
-  
+          legend.title = element_text(size=10),
+          legend.text = element_text(size=10),
+          legend.spacing.x = grid::unit(30, "pt"))
+
   bar_comp <- ggarrange(sex_comp, race_comp, age_comp, other_comp,
                         nrow=2, ncol=2, common.legend = T) # sooo similar
   bar_comp
