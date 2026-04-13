@@ -1,0 +1,1 @@
+Scripts and data supporting R Shiny dashboard, presenting the results of GeoHealth manuscript "Assessing Intraurban Variation in Heat-Attributable Health Burden to Inform Local Interventions": https://heat-cvd-dashboard-rtp-nc.apps.cloudapps.unc.edu/
